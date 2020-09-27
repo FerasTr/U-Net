@@ -8,9 +8,13 @@ from torchvision import transforms
 from torch.utils.data import Dataset
 
 class Loader(Dataset):
-    def __init__(self, data_folder):
+    def __init__(self, data_folder, test=False):
         self.image_dir = os.path.join(data_folder, "input")
         self.label_dir = os.path.join(data_folder, "target")
+        self.test = test
+        if self.test:
+            self.image_dir = os.path.join(data_folder, "test")
+            self.label_dir = os.path.join(data_folder, "test-target") 
         self.images = [
             file for file in os.listdir(self.image_dir) if not file.startswith(".")
         ]
@@ -32,23 +36,23 @@ class Loader(Dataset):
         return masks
 
     def transform(self, image, mask):
-        # i, j, h, w = transforms.RandomCrop.get_params(image, output_size=(512, 512))
-        # image = TF.crop(image, i, j, h, w)
-        # mask = TF.crop(mask, i, j, h, w)
+        i, j, h, w = transforms.RandomCrop.get_params(image, output_size=(512, 512))
+        image = TF.crop(image, i, j, h, w)
+        mask = TF.crop(mask, i, j, h, w)
 
-        # # Random horizontal flipping
-        # if random.random() > 0.5:
-        #     image = TF.hflip(image)
-        #     mask = TF.hflip(mask)
+        if random.random() > 0.5:
+            image = TF.hflip(image)
+            mask = TF.hflip(mask)
 
-        # image = TF.rotate(image, 90)
-        # mask = TF.rotate(mask, 90)
-        # image = TF.rotate(image, 180)
-        # mask = TF.rotate(mask, 180)
-        # image = TF.rotate(image, 270)
-        # mask = TF.rotate(mask, 270)
+        rotation = [0, 90, 180, 270]
+        if random.random() > 0.5:
+            r = random.choice(rotation)
+            image = TF.rotate(image,r)
+            mask = TF.rotate(mask,r)
 
-        # Transform to tensor
+        return image, mask
+
+    def transform_to_tensor(self, image, mask):
         image = np.array(image) / 255.0
         image = image.transpose((2, 0, 1))
         image = torch.from_numpy(np.array(image)).float()
@@ -65,8 +69,11 @@ class Loader(Dataset):
         img = Image.open(img_file)
         mask = Image.open(mask_file)
 
-        img, mask = self.transform(img, mask)
-        mask = self.mask_to_class(mask)
+        if not self.test:
+            img, mask = self.transform(img, mask)
+        img, mask = self.transform_to_tensor(img, mask)
+        if not self.test:
+           mask = self.mask_to_class(mask)
         return {'image': img, 'mask': mask}
 
 
