@@ -14,8 +14,9 @@ data_folder = "../data/"
 model_path = "../model/"
 
 def train_net(
-    net,n_channels,n_classes, epochs=50, val_precent=0.1, batch_size=1, lr=0.0001, weight_decay=1e-8
+    net,n_channels,n_classes, epochs=100, val_precent=0.1, batch_size=1, lr=0.0001, weight_decay=1e-8, momentum=0.99
 ):
+    print("Creating dataset for training...")
     dataset = Loader(data_folder)
     n_val = int(len(dataset) * val_precent)
     n_train = len(dataset) - n_val
@@ -31,8 +32,7 @@ def train_net(
     global_step = 0
 
     # optimizer = optim.SGD(net.parameters(), lr=lr, momentum=0.99, weight_decay=0.0005)
-    # optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8)
-    optimizer = optim.RMSprop(net.parameters(), lr=0.0001, weight_decay=1e-8, momentum=0.9)
+    optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8)
     # optimizer = optim.Adam(net.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss(
         weight=torch.Tensor(class_weights).to(device=device)
@@ -124,7 +124,9 @@ if __name__ == "__main__":
     net.to(device=device)
 
     try:
+        print("Training starting...")
         train_net(net,n_channels,n_classes)
+        print("Training done")
     except KeyboardInterrupt:
         torch.save(net.state_dict(), model_path + "INTERRUPTED.pth")
         try:
