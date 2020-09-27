@@ -10,11 +10,16 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+import wandb
+wandb.init(project="unet-med")
+
 data_folder = "../data/"
 model_path = "../model/"
+model_name = "RMSprop_100e_0001_model.pth"
+
 
 def train_net(
-    net,n_channels,n_classes, epochs=100, val_precent=0.1, batch_size=1, lr=0.0001, weight_decay=1e-8, momentum=0.99
+    net, n_channels, n_classes, class_weights, epochs=100, val_precent=0.1, batch_size=1, lr=0.0001, weight_decay=1e-8, momentum=0.99
 ):
     print("Creating dataset for training...")
     dataset = Loader(data_folder)
@@ -38,6 +43,7 @@ def train_net(
         weight=torch.Tensor(class_weights).to(device=device)
     )
 
+    wandb.watch(net)
     for epoch in range(epochs):
         net.train()
         tepoch_loss = 0
@@ -61,13 +67,12 @@ def train_net(
                 print(masks_pred.shape)
             loss = criterion(masks_pred, masks.squeeze(1))
 
-
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             tepoch_loss += loss.item()
-            tepoch_acc += multi_acc(masks_pred, masks) 
+            tepoch_acc += multi_acc(masks_pred, masks)
 
             global_step += 1
 
@@ -83,7 +88,7 @@ def train_net(
 
                 loss = criterion(masks_pred, masks.squeeze(1))
 
-                vepoch_loss += loss.item() 
+                vepoch_loss += loss.item()
                 vepoch_acc += multi_acc(masks_pred, masks)
 
         tepoch_loss /= n_train
@@ -92,15 +97,19 @@ def train_net(
         vepoch_acc /= n_val
 
         print(
-            "epoch {0:} finished, tloss: {1:.4f} [{2:.2f}%]  vloss: {3:.4f} [{4:.2f}%]".format(
+            "Epoch {0:} finished, Training loss: {1:.4f} [{2:.2f}%]  Validation loss: {3:.4f} [{4:.2f}%]".format(
                 epoch + 1, tepoch_loss, tepoch_acc, vepoch_loss, vepoch_acc
             )
         )
+        wandb.log({"Test Accuracy": tepoch_acc, "Test Loss": tepoch_loss})
+        wandb.log({"Validation Accuracy": vepoch_acc, "Validation Loss": vepoch_loss})
     try:
         os.mkdir(model_path)
     except OSError:
         pass
-    torch.save(net.state_dict(), model_path + "model.pth")
+
+    torch.save(net.state_dict(), model_path + model_name)
+    torch.save(net.state_dict(), os.path.join(wandb.run.dir, model_name))
 
 
 def multi_acc(pred, label):
@@ -113,19 +122,22 @@ def multi_acc(pred, label):
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    class_weights = np.array([1, 1, 1]).astype(np.float)
     n_classes = 3
     n_channels = 3
+    print(
+        "Number of input channels = {n_channels}. Number of classes = {n_classes}")
+    class_weights = np.array([1, 1, 1]).astype(np.float)
+    print("Current class weights = {class_weights}")
     assert (
         len(class_weights) == n_classes
-    ), "Lenght of the weights-vector should be equal to the number of classes"
+    ), "Should be a 1D Tensor assigning weight to each of the classes. Lenght of the weights-vector should be equal to the number of classes"
 
-    net = UNet(n_channels=n_channels,n_classes=n_classes)
+    net = UNet(n_channels=n_channels, n_classes=n_classes)
     net.to(device=device)
 
     try:
         print("Training starting...")
-        train_net(net,n_channels,n_classes)
+        train_net(net, n_channels, n_classes, class_weights)
         print("Training done")
     except KeyboardInterrupt:
         torch.save(net.state_dict(), model_path + "INTERRUPTED.pth")
