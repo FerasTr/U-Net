@@ -36,14 +36,6 @@ class Loader(Dataset):
         return masks
 
     def transform(self, image, mask):
-        i, j, h, w = transforms.RandomCrop.get_params(image, output_size=(512, 512))
-        image = TF.crop(image, i, j, h, w)
-        mask = TF.crop(mask, i, j, h, w)
-
-        if random.random() > 0.5:
-            image = TF.hflip(image)
-            mask = TF.hflip(mask)
-
         rotation = [0, 90, 180, 270]
         if random.random() > 0.5:
             r = random.choice(rotation)
@@ -78,7 +70,7 @@ class Loader(Dataset):
 
 
 if __name__ == "__main__":
-    data_folder = "../../data/"
+    data_folder = "c:/Users/darag/Workspace/U-Net/data"
     demo = Loader(data_folder)
     data = demo.__getitem__(5)
     show = True

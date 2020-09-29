@@ -15,7 +15,7 @@ wandb.init(project="unet-med")
 
 data_folder = "../data/"
 model_path = "../model/"
-model_name = "RMSprop_100e_0001_model.pth"
+model_name = "RMSprop_100e_0001_03051_model.pth"
 
 
 def train_net(
@@ -125,9 +125,9 @@ if __name__ == "__main__":
     n_classes = 3
     n_channels = 3
     print(
-        "Number of input channels = {n_channels}. Number of classes = {n_classes}")
-    class_weights = np.array([1, 1, 1]).astype(np.float)
-    print("Current class weights = {class_weights}")
+        "Number of input channels = {n_channels}. Number of classes = {n_classes}".format(n_channels, n_classes))
+    class_weights = np.array([0.3, 0.5, 1]).astype(np.float)
+    print("Current class weights = {class_weights}".format(class_weights))
     assert (
         len(class_weights) == n_classes
     ), "Should be a 1D Tensor assigning weight to each of the classes. Lenght of the weights-vector should be equal to the number of classes"
