@@ -2,6 +2,7 @@ import numpy as np
 import os
 from PIL import Image
 import torch
+from torchvision import transforms
 
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
@@ -11,8 +12,7 @@ from model.unet import UNet
 
 data_folder = "../data/"
 model_path = "../model/"
-# model_name = "RMSprop_100e_0001_model"
-model_name = "model"
+model_name = "RMSprop_100e_0001_03051_model"
 save_path = model_path + model_name + '/'
 
 
@@ -28,17 +28,17 @@ def predict(net):
         with torch.no_grad():
             input = i["image"]
             input = input.to(device=device, dtype=torch.float32)
-
             output = net(input)
-
+            input = input.cpu().squeeze()
+            input = transforms.ToPILImage()(input)
             probs = F.softmax(output, dim=1)
             probs = probs.squeeze(0)
 
             full_mask = probs.squeeze().cpu().numpy()
 
-            fig, (ax0, ax1, ax2, ax3, ax4) = plt.subplots(1, 5, sharey=True,figsize=(14,6))
+            fig, (ax0, ax1, ax2, ax3, ax4) = plt.subplots(1, 5, figsize=(20,10), sharey=True)
             ax0.set_title('Input Image')
-            ax0.imshow(input.cpu().squeeze(0).permute(1,2,0).numpy())
+            ax0.imshow(input)
             ax1.set_title('Background Class')
             ax1.imshow(full_mask[0, :, :].squeeze())
             ax2.set_title('Neuron Class')
@@ -52,10 +52,10 @@ def predict(net):
 
             ax4.set_title('Predicted Mask')
             ax4.imshow(img)
-            plt.show()
-            #fig.savefig(save_path + str(idx + 1) + '.png')
-            #img.save(str(idx) + '.png')
-    return full_mask
+
+            imm = get_concat_h(img, input)
+            imm.save(save_path + str(idx + 1) + '_full.png')
+            fig.savefig(save_path + str(idx + 1) + '.png')
 
 
 def mask_to_image(mask):

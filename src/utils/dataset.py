@@ -70,10 +70,10 @@ class Loader(Dataset):
 
 
 if __name__ == "__main__":
-    data_folder = "c:/Users/darag/Workspace/U-Net/data"
+    data_folder = "/home/fdxd/Workspace/U-Net/data"
     demo = Loader(data_folder)
     data = demo.__getitem__(5)
     show = True
     if show:
-        print(data["image"])
-        print(data["mask"])
+        print(data["image"].shape)
+        print(data["mask"].shape)
