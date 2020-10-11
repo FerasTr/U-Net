@@ -23,43 +23,70 @@ def predict(net):
         testset, batch_size=1, shuffle=True, num_workers=8, pin_memory=True
     )
     net.eval()
-    print(len(testset))
+    save = True
+    show = False
     for idx, i in enumerate(test_loader):
+        print(idx)
         with torch.no_grad():
             input = i["image"]
             input = input.to(device=device, dtype=torch.float32)
+
             output = net(input)
+
             input = input.cpu().squeeze()
             input = transforms.ToPILImage()(input)
-            probs = F.softmax(output, dim=1)
-            probs = probs.squeeze(0)
 
-            full_mask = probs.squeeze().cpu().numpy()
+            binary_mask = torch.argmax(output, dim=1).squeeze().cpu().numpy()
 
             fig, (ax0, ax1, ax2, ax3, ax4) = plt.subplots(1, 5, figsize=(20,10), sharey=True)
+
             ax0.set_title('Input Image')
-            ax0.imshow(input)
             ax1.set_title('Background Class')
-            ax1.imshow(full_mask[0, :, :].squeeze())
             ax2.set_title('Neuron Class')
-            ax2.imshow(full_mask[1, :, :].squeeze())
             ax3.set_title('Dendrite Class')
-            ax3.imshow(full_mask[2, :, :].squeeze())
-
-            full_mask = np.argmax(full_mask, 0)
-
-            img = mask_to_image(full_mask)
-
             ax4.set_title('Predicted Mask')
-            ax4.imshow(img)
 
-            imm = get_concat_h(img, input)
-            imm.save(save_path + str(idx + 1) + '_full.png')
-            fig.savefig(save_path + str(idx + 1) + '.png')
+            ax0.imshow(input)
+            ax1.imshow(binary_mask==0)
+            ax2.imshow(binary_mask==1)
+            ax3.imshow(binary_mask==2)
+
+            img = mask_to_image(binary_mask)
+
+            ax4.imshow(img)
+            if save:
+                fig.savefig(save_path + str(idx + 1) + '_classes.png')
+            if show:
+                plt.show()
+            plt.close(fig)
+
+            fig1, x = plt.subplots(nrows=1, ncols=1, sharey=True)
+            x.imshow(img)
+            if save:
+                fig1.savefig(save_path + str(idx + 1) + '_mask.png')
+            if show:
+                plt.show()
+            plt.close(fig1)
+
+            fig2, (x1,x2) = plt.subplots(nrows=1, ncols=2, sharey=True)
+            x2.imshow(input)
+            x1.imshow(img)
+            if save:
+                fig2.savefig(save_path + str(idx + 1) + '_img_mask.png')
+            if show:
+                plt.show()
+            plt.close(fig2)
 
 
 def mask_to_image(mask):
-    return Image.fromarray((mask * 255).astype(np.uint8)).convert("RGB")
+    mask = torch.tensor(mask)
+
+    black = mask == 0
+    red = mask == 1
+    white = mask == 2
+
+    image = torch.stack([red, black, white],dim=2).int().numpy() * 255
+    return Image.fromarray((image).astype(np.uint8))
 
 def get_concat_h(im1, im2):
     dst = Image.new('RGB', (im1.width + im2.width, im1.height))

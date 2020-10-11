@@ -50,18 +50,20 @@ def train_net(
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8)
     # optimizer = optim.Adam(net.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss(
-        weight=torch.Tensor(class_weights).to(device=device)
+        weight=torch.Tensor(class_weights).to(device=device), reduction="mean"
     )
     if wandb_track:
         wandb.watch(net)
     for epoch in range(epochs):
         net.train()
+
         tepoch_loss = 0
         tepoch_acc = 0
         vepoch_loss = 0
         vepoch_acc = 0
         tepoch_class_acc = [0] * n_classes
         vepoch_class_acc = [0] * n_classes
+        inter_over_uni = 0
 
         for batch in train_loader:
             imgs = batch["image"]
@@ -75,7 +77,7 @@ def train_net(
             masks = masks.to(device=device, dtype=torch.long)
 
             masks_pred = net(imgs)
-            loss = criterion(masks_pred, masks.squeeze(1))
+            loss = criterion(masks_pred, masks)
 
             optimizer.zero_grad()
             loss.backward()
@@ -83,7 +85,10 @@ def train_net(
 
             tepoch_loss += loss.item()
             tepoch_acc += multi_acc(masks_pred, masks)
-            tepoch_class_acc = np.add(np.array(tepoch_class_acc),np.array(multi_acc_class(masks_pred, masks, n_classes)))
+            tepoch_class_acc = np.add(
+                np.array(tepoch_class_acc),
+                np.array(multi_acc_class(masks_pred, masks, n_classes)),
+            )
 
         net.eval()
         for batch in val_loader:
@@ -95,11 +100,14 @@ def train_net(
 
                 masks_pred = net(imgs)
 
-                loss = criterion(masks_pred, masks.squeeze(1))
-
+                loss = criterion(masks_pred, masks)
+                inter_over_uni += iou(masks_pred, masks, n_classes)
                 vepoch_loss += loss.item()
                 vepoch_acc += multi_acc(masks_pred, masks)
-                vepoch_class_acc = np.add(np.array(vepoch_class_acc),np.array(multi_acc_class(masks_pred, masks, n_classes)))
+                vepoch_class_acc = np.add(
+                    np.array(vepoch_class_acc),
+                    np.array(multi_acc_class(masks_pred, masks, n_classes)),
+                )
 
         tepoch_loss /= n_train
         tepoch_acc /= n_train
@@ -107,35 +115,46 @@ def train_net(
         vepoch_loss /= n_val
         vepoch_acc /= n_val
         vepoch_class_acc = [x / n_val for x in vepoch_class_acc]
+        inter_over_uni /= n_val
 
         print(
-            "Epoch {0:}, Training loss: {1:.4f} [{2:.2f}%]  Validation loss: {3:.4f} [{4:.2f}% ".format(
-                epoch + 1,
-                tepoch_loss,
-                tepoch_acc,
-                vepoch_loss,
-                vepoch_acc,
+            "Epoch {0:}, Training loss: {1:.4f} [{2:.2f}%]  Validation loss: {3:.4f} [{4:.2f}%]".format(
+                epoch + 1, tepoch_loss, tepoch_acc, vepoch_loss, vepoch_acc,
             )
         )
         print(
             "Training Class 1 Accuracy: [{0:.2f}%] Training Class 2 Accuracy: [{1:.2f}%] Training Class 3 Accuracy: [{2:.2f}%]".format(
-                tepoch_class_acc[0],
-                tepoch_class_acc[1],
-                tepoch_class_acc[2],
+                tepoch_class_acc[0], tepoch_class_acc[1], tepoch_class_acc[2],
             )
         )
         print(
             "Validation Class 1 Accuracy: [{0:.2f}%] Validation Class 2 Accuracy: [{1:.2f}%] Validation Class 3 Accuracy: [{2:.2f}%]".format(
-                vepoch_class_acc[0],
-                vepoch_class_acc[1],
-                vepoch_class_acc[2],
+                vepoch_class_acc[0], vepoch_class_acc[1], vepoch_class_acc[2],
             )
         )
+        print("Validation IoU {}".format(inter_over_uni))
         if wandb_track:
             wandb.log({"Test Accuracy": tepoch_acc, "Test Loss": tepoch_loss})
             wandb.log(
                 {"Validation Accuracy": vepoch_acc, "Validation Loss": vepoch_loss}
             )
+            wandb.log(
+                {
+                    "Training Background Accuracy": tepoch_class_acc[0],
+                    "Training Cells Accuracy": tepoch_class_acc[1],
+                    "Training Dendrites Accuracy": tepoch_class_acc[2],
+                }
+            )
+            wandb.log(
+                {
+                    "Validation Background Accuracy": vepoch_class_acc[0],
+                    "Validation Cells Accuracy": vepoch_class_acc[1],
+                    "Validation Dendrites Accuracy": vepoch_class_acc[2],
+                }
+            )
+            wandb.log({"Validation IoU for Background": inter_over_uni[0]})
+            wandb.log({"Validation IoU for Neurons": inter_over_uni[1]})
+            wandb.log({"Validation IoU for Dendrites": inter_over_uni[2]})
     try:
         os.mkdir(model_path)
     except OSError:
@@ -165,13 +184,27 @@ def multi_acc_class(pred, label, n_classes):
         accs_per_label_pct.append(num_corrects_per_label / num_total_per_label * 100)
     return [i.item() for i in accs_per_label_pct]
 
+def iou(outputs, labels, n_classes):
+    ious = []
+    pred = torch.argmax(outputs, dim=1).squeeze(1).view(-1)
+    target = labels.view(-1)
+    SMOOTH = 1e-6
+    for idx in range(n_classes):
+        preds_inds = pred == idx
+        target_inds = target == idx
+        intersection = (preds_inds & target_inds).float().sum()
+        union = (preds_inds | target_inds).float().sum()
+        iou = (intersection + SMOOTH) / (union + SMOOTH)
+        ious.append(iou.item())
+    return np.array(ious)
+
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     n_classes = 3
     n_channels = 3
     print(
-        "Number of input channels = {}. Number of classes = {}".format(
+        "Number of input channels = {}. Number of classes = {}.".format(
             n_channels, n_classes
         )
     )

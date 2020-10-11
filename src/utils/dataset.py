@@ -7,6 +7,7 @@ import torchvision.transforms.functional as TF
 from torchvision import transforms
 from torch.utils.data import Dataset
 
+
 class Loader(Dataset):
     def __init__(self, data_folder, test=False):
         self.image_dir = os.path.join(data_folder, "input")
@@ -14,7 +15,7 @@ class Loader(Dataset):
         self.test = test
         if self.test:
             self.image_dir = os.path.join(data_folder, "test")
-            self.label_dir = os.path.join(data_folder, "test-target") 
+            self.label_dir = os.path.join(data_folder, "test-target")
         self.images = [
             file for file in os.listdir(self.image_dir) if not file.startswith(".")
         ]
@@ -39,9 +40,10 @@ class Loader(Dataset):
         rotation = [0, 90, 180, 270]
         if random.random() > 0.5:
             r = random.choice(rotation)
-            image = TF.rotate(image,r)
-            mask = TF.rotate(mask,r)
-
+            image = TF.rotate(image, r)
+            mask = TF.rotate(mask, r)
+        pix_add = random.randint(-40, 40)
+        image = self.change_brightness(image, pix_add)
         return image, mask
 
     def transform_to_tensor(self, image, mask):
@@ -64,9 +66,36 @@ class Loader(Dataset):
         if not self.test:
             img, mask = self.transform(img, mask)
         img, mask = self.transform_to_tensor(img, mask)
-        if not self.test:
-           mask = self.mask_to_class(mask)
-        return {'image': img, 'mask': mask}
+        mask = self.mask_to_class(mask)
+        return {"image": img, "mask": mask}
+
+
+    def change_brightness(self,image, value):
+        """
+        Args:
+            image : numpy array of image
+            value : brightness
+        Return :
+            image : numpy array of image with brightness added
+        """
+        image = np.array(image)
+        image = image.astype("int16")
+        image = image + value
+        image = self.ceil_floor_image(image)
+        return image
+
+
+    def ceil_floor_image(self,image):
+        """
+        Args:
+            image : numpy array of image in datatype int16
+        Return :
+            image : numpy array of image in datatype uint8 with ceilling(maximum 255) and flooring(minimum 0)
+        """
+        image[image > 255] = 255
+        image[image < 0] = 0
+        image = image.astype("uint8")
+        return image
 
 
 if __name__ == "__main__":
