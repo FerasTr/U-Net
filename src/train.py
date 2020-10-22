@@ -10,7 +10,11 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-wandb_track = False
+from sklearn.metrics import confusion_matrix
+
+from utils.metrics import *
+
+wandb_track = True
 if wandb_track:
     import wandb
 
@@ -18,7 +22,7 @@ if wandb_track:
 
 data_folder = "../data/"
 model_path = "../model/"
-model_name = "exp.pth"
+model_name = "RMSprop_100e_0001_03051_model.pth"
 
 
 def train_net(
@@ -26,35 +30,47 @@ def train_net(
     n_channels,
     n_classes,
     class_weights,
-    epochs=1,
-    val_precent=0.1,
+    epochs=6,
     batch_size=1,
     lr=0.0001,
     weight_decay=1e-8,
     momentum=0.99,
 ):
     print("Creating dataset for training...")
-    dataset = Loader(data_folder)
-    n_val = int(len(dataset) * val_precent)
-    n_train = len(dataset) - n_val
-    train, val = random_split(dataset, [n_train, n_val])
+    dataset_train = Loader(data_folder , mode="train")
+    dataset_val = Loader(data_folder , mode="val")
+    n_val = int(len(dataset_val))
+    n_train = int(len(dataset_train))
 
     train_loader = DataLoader(
-        train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True
+        dataset_train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True
     )
     val_loader = DataLoader(
-        val, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True
+        dataset_val, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True
     )
+
+    cw = torch.Tensor(class_weights).to(device=device)
 
     # optimizer = optim.SGD(net.parameters(), lr=lr, momentum=0.99, weight_decay=0.0005)
     optimizer = optim.RMSprop(net.parameters(), lr=lr, weight_decay=1e-8)
     # optimizer = optim.Adam(net.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss(
-        weight=torch.Tensor(class_weights).to(device=device), reduction="mean"
-    )
+    # criterion = nn.CrossEntropyLoss(weight=torch.Tensor(class_weights).to(device=device), reduction="mean")
+    criterion = nn.CrossEntropyLoss(weight=cw, reduction="mean")
+
     if wandb_track:
         wandb.watch(net)
+
+    tavg_lss = 0
+    vavg_lss = 0
+    tavg_acc = 0
+    vavg_acc = 0
+    tavg_class_acc = [0] * n_classes
+    vavg_class_acc = [0] * n_classes
+    avg_inter_over_uni = [0] * n_classes
+    conf_matrix = torch.zeros(n_classes, n_classes)
+
     for epoch in range(epochs):
+
         net.train()
 
         tepoch_loss = 0
@@ -63,7 +79,7 @@ def train_net(
         vepoch_acc = 0
         tepoch_class_acc = [0] * n_classes
         vepoch_class_acc = [0] * n_classes
-        inter_over_uni = 0
+        inter_over_uni = [0] * n_classes
 
         for batch in train_loader:
             imgs = batch["image"]
@@ -77,7 +93,9 @@ def train_net(
             masks = masks.to(device=device, dtype=torch.long)
 
             masks_pred = net(imgs)
+
             loss = criterion(masks_pred, masks)
+            # loss = loss.sum() / cw[masks].sum()
 
             optimizer.zero_grad()
             loss.backward()
@@ -101,6 +119,10 @@ def train_net(
                 masks_pred = net(imgs)
 
                 loss = criterion(masks_pred, masks)
+                # loss = loss.sum() / cw[masks].sum()
+
+                conf_matrix = confusion_matrix(masks_pred, masks, conf_matrix)
+
                 inter_over_uni += iou(masks_pred, masks, n_classes)
                 vepoch_loss += loss.item()
                 vepoch_acc += multi_acc(masks_pred, masks)
@@ -108,14 +130,22 @@ def train_net(
                     np.array(vepoch_class_acc),
                     np.array(multi_acc_class(masks_pred, masks, n_classes)),
                 )
-
         tepoch_loss /= n_train
         tepoch_acc /= n_train
-        tepoch_class_acc = [x / n_train for x in tepoch_class_acc]
+        tavg_lss += tepoch_loss
+        tavg_acc += tepoch_acc
+        tepoch_class_acc /= n_train
+        tavg_class_acc = np.add(np.array(tavg_class_acc), np.array(tepoch_class_acc))
+
         vepoch_loss /= n_val
         vepoch_acc /= n_val
-        vepoch_class_acc = [x / n_val for x in vepoch_class_acc]
+        vavg_lss += vepoch_loss
+        vavg_acc += vepoch_acc
+        vepoch_class_acc /= n_val
+        vavg_class_acc = np.add(np.array(vavg_class_acc), np.array(vepoch_class_acc))
+
         inter_over_uni /= n_val
+        avg_inter_over_uni += inter_over_uni
 
         print(
             "Epoch {0:}, Training loss: {1:.4f} [{2:.2f}%]  Validation loss: {3:.4f} [{4:.2f}%]".format(
@@ -123,16 +153,10 @@ def train_net(
             )
         )
         print(
-            "Training Class 1 Accuracy: [{0:.2f}%] Training Class 2 Accuracy: [{1:.2f}%] Training Class 3 Accuracy: [{2:.2f}%]".format(
-                tepoch_class_acc[0], tepoch_class_acc[1], tepoch_class_acc[2],
-            )
-        )
-        print(
-            "Validation Class 1 Accuracy: [{0:.2f}%] Validation Class 2 Accuracy: [{1:.2f}%] Validation Class 3 Accuracy: [{2:.2f}%]".format(
+            "Val Backg Accuracy: [{0:.2f}%] Val Cells Accuracy: [{1:.2f}%] Val Dendrites Accuracy: [{2:.2f}%]".format(
                 vepoch_class_acc[0], vepoch_class_acc[1], vepoch_class_acc[2],
             )
         )
-        print("Validation IoU {}".format(inter_over_uni))
         if wandb_track:
             wandb.log({"Test Accuracy": tepoch_acc, "Test Loss": tepoch_loss})
             wandb.log(
@@ -152,9 +176,72 @@ def train_net(
                     "Validation Dendrites Accuracy": vepoch_class_acc[2],
                 }
             )
-            wandb.log({"Validation IoU for Background": inter_over_uni[0]})
-            wandb.log({"Validation IoU for Neurons": inter_over_uni[1]})
-            wandb.log({"Validation IoU for Dendrites": inter_over_uni[2]})
+            wandb.log(
+                {
+                    "Validation IoU for Background": inter_over_uni[0],
+                    "Validation IoU for Neurons": inter_over_uni[1],
+                    "Validation IoU for Dendrites": inter_over_uni[2],
+                }
+            )
+
+    tavg_acc /= epochs
+    tavg_class_acc /= epochs
+    tavg_lss /= epochs
+
+    vavg_acc /= epochs
+    vavg_class_acc /= epochs
+    vavg_lss /= epochs
+
+    avg_inter_over_uni /= epochs
+
+    for i in range(n_classes):
+        r, s, p, f = confusion_matrix_metrics(i, n_classes, conf_matrix)
+
+        msg_r = "Val Class {} Recall".format(i)
+        msg_s = "Val Class {} Specificity".format(i)
+        msg_p = "Val Class {} Precision".format(i)
+        msg_f = "Val Class {} F1-score".format(i)
+
+        print(msg_r + " " + str(r))
+        print(msg_s + " " + str(s))
+        print(msg_p + " " + str(p))
+        print(msg_f + " " + str(f))
+
+        if wandb_track:
+            wandb.log(
+                {msg_r: r, msg_s: s, msg_p: p, msg_f: f,}
+            )
+
+    if wandb_track:
+        wandb.log(
+            {
+                "Train Average Accuracy": tavg_acc,
+                "Validation Average Accuracy": vavg_acc,
+            }
+        )
+        wandb.log({"Train Average Loss": tavg_lss, "Validation Average Loss": vavg_lss})
+        wandb.log(
+            {
+                "Validation Average Background Accuracy": vavg_class_acc[0],
+                "Validation Average Cells Accuracy": vavg_class_acc[1],
+                "Validation Average Dendrites Accuracy": vavg_class_acc[2],
+            }
+        )
+        wandb.log(
+            {
+                "Training Average Background Accuracy": tavg_class_acc[0],
+                "Training Average Cells Accuracy": tavg_class_acc[1],
+                "Training Average Dendrites Accuracy": tavg_class_acc[2],
+            }
+        )
+        wandb.log(
+            {
+                "Validation Average IoU for Background": avg_inter_over_uni[0],
+                "Validation Average IoU for Neurons": avg_inter_over_uni[1],
+                "Validation Average IoU for Dendrites": avg_inter_over_uni[2],
+            }
+        )
+
     try:
         os.mkdir(model_path)
     except OSError:
@@ -163,40 +250,6 @@ def train_net(
     torch.save(net.state_dict(), model_path + model_name)
     if wandb_track:
         torch.save(net.state_dict(), os.path.join(wandb.run.dir, model_name))
-
-
-def multi_acc(pred, label):
-    tags = torch.argmax(pred, dim=1)
-    corrects = (tags == label).float()
-    acc = corrects.sum() / corrects.numel()
-    acc = acc * 100
-    return acc
-
-
-def multi_acc_class(pred, label, n_classes):
-    accs_per_label_pct = []
-    tags = torch.argmax(pred, dim=1)
-    for cls in range(n_classes):
-        corrects = label == cls
-        num_total_per_label = corrects.sum()
-        corrects &= tags == label
-        num_corrects_per_label = corrects.float().sum()
-        accs_per_label_pct.append(num_corrects_per_label / num_total_per_label * 100)
-    return [i.item() for i in accs_per_label_pct]
-
-def iou(outputs, labels, n_classes):
-    ious = []
-    pred = torch.argmax(outputs, dim=1).squeeze(1).view(-1)
-    target = labels.view(-1)
-    SMOOTH = 1e-6
-    for idx in range(n_classes):
-        preds_inds = pred == idx
-        target_inds = target == idx
-        intersection = (preds_inds & target_inds).float().sum()
-        union = (preds_inds | target_inds).float().sum()
-        iou = (intersection + SMOOTH) / (union + SMOOTH)
-        ious.append(iou.item())
-    return np.array(ious)
 
 
 if __name__ == "__main__":

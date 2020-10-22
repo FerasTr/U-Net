@@ -9,13 +9,17 @@ from torch.utils.data import Dataset
 
 
 class Loader(Dataset):
-    def __init__(self, data_folder, test=False):
-        self.image_dir = os.path.join(data_folder, "input")
-        self.label_dir = os.path.join(data_folder, "target")
-        self.test = test
-        if self.test:
+    def __init__(self, data_folder, mode):
+        self.mode = mode
+        if mode == "train":
+            self.image_dir = os.path.join(data_folder, "input")
+            self.label_dir = os.path.join(data_folder, "target")
+        if mode == "test":
             self.image_dir = os.path.join(data_folder, "test")
-            self.label_dir = os.path.join(data_folder, "test-target")
+            self.label_dir = os.path.join(data_folder, "test_target")
+        if mode == "val":
+            self.image_dir = os.path.join(data_folder, "val")
+            self.label_dir = os.path.join(data_folder, "val_target")
         self.images = [
             file for file in os.listdir(self.image_dir) if not file.startswith(".")
         ]
@@ -63,7 +67,7 @@ class Loader(Dataset):
         img = Image.open(img_file)
         mask = Image.open(mask_file)
 
-        if not self.test:
+        if self.mode == "train":
             img, mask = self.transform(img, mask)
         img, mask = self.transform_to_tensor(img, mask)
         mask = self.mask_to_class(mask)
