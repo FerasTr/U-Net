@@ -153,37 +153,65 @@ def train_net(
                 epoch + 1, tepoch_loss, tepoch_acc, vepoch_loss, vepoch_acc,
             )
         )
-        print(
-            "Val Backg Accuracy: [{0:.2f}%] Val Cells Accuracy: [{1:.2f}%] Val Dendrites Accuracy: [{2:.2f}%]".format(
-                vepoch_class_acc[0], vepoch_class_acc[1], vepoch_class_acc[2],
+        if n_classes == 3:
+            print(
+                "Val Backg Accuracy: [{0:.2f}%] Val Cells Accuracy: [{1:.2f}%] Val Dendrites Accuracy: [{2:.2f}%]".format(
+                    vepoch_class_acc[0], vepoch_class_acc[1], vepoch_class_acc[2],
+                )
             )
-        )
+        elif n_classes == 2:
+            print(
+                "Val Backg Accuracy: [{0:.2f}%] Val Dendrites Accuracy: [{1:.2f}%]".format(
+                    vepoch_class_acc[0], vepoch_class_acc[1],
+                )
+            )
+       
         if wandb_track:
             wandb.log({"Test Accuracy": tepoch_acc, "Test Loss": tepoch_loss})
             wandb.log(
                 {"Validation Accuracy": vepoch_acc, "Validation Loss": vepoch_loss}
             )
-            wandb.log(
-                {
-                    "Training Background Accuracy": tepoch_class_acc[0],
-                    "Training Cells Accuracy": tepoch_class_acc[1],
-                    "Training Dendrites Accuracy": tepoch_class_acc[2],
-                }
-            )
-            wandb.log(
-                {
-                    "Validation Background Accuracy": vepoch_class_acc[0],
-                    "Validation Cells Accuracy": vepoch_class_acc[1],
-                    "Validation Dendrites Accuracy": vepoch_class_acc[2],
-                }
-            )
-            wandb.log(
-                {
-                    "Validation IoU for Background": inter_over_uni[0],
-                    "Validation IoU for Neurons": inter_over_uni[1],
-                    "Validation IoU for Dendrites": inter_over_uni[2],
-                }
-            )
+            if n_classes == 3:
+                wandb.log(
+                    {
+                        "Training Background Accuracy": tepoch_class_acc[0],
+                        "Training Cells Accuracy": tepoch_class_acc[1],
+                        "Training Dendrites Accuracy": tepoch_class_acc[2],
+                    }
+                )
+                wandb.log(
+                    {
+                        "Validation Background Accuracy": vepoch_class_acc[0],
+                        "Validation Cells Accuracy": vepoch_class_acc[1],
+                        "Validation Dendrites Accuracy": vepoch_class_acc[2],
+                    }
+                )
+                wandb.log(
+                    {
+                        "Validation IoU for Background": inter_over_uni[0],
+                        "Validation IoU for Cells": inter_over_uni[1],
+                        "Validation IoU for Dendrites": inter_over_uni[2],
+                    }
+                )
+            elif n_classes == 2:
+                wandb.log(
+                    {
+                        "Training Background Accuracy": tepoch_class_acc[0],
+                        "Training Dendrites Accuracy": tepoch_class_acc[1],
+                    }
+                )
+                wandb.log(
+                    {
+                        "Validation Background Accuracy": vepoch_class_acc[0],
+                        "Validation Dendrites Accuracy": vepoch_class_acc[1],
+                    }
+                )
+                wandb.log(
+                    {
+                        "Validation IoU for Background": inter_over_uni[0],
+                        "Validation IoU for Dendrites": inter_over_uni[1],
+                    }
+                )
 
     tavg_acc /= epochs
     tavg_class_acc /= epochs
@@ -221,27 +249,47 @@ def train_net(
             }
         )
         wandb.log({"Train Average Loss": tavg_lss, "Validation Average Loss": vavg_lss})
-        wandb.log(
-            {
-                "Validation Average Background Accuracy": vavg_class_acc[0],
-                "Validation Average Cells Accuracy": vavg_class_acc[1],
-                "Validation Average Dendrites Accuracy": vavg_class_acc[2],
-            }
-        )
-        wandb.log(
-            {
-                "Training Average Background Accuracy": tavg_class_acc[0],
-                "Training Average Cells Accuracy": tavg_class_acc[1],
-                "Training Average Dendrites Accuracy": tavg_class_acc[2],
-            }
-        )
-        wandb.log(
-            {
-                "Validation Average IoU for Background": avg_inter_over_uni[0],
-                "Validation Average IoU for Neurons": avg_inter_over_uni[1],
-                "Validation Average IoU for Dendrites": avg_inter_over_uni[2],
-            }
-        )
+        if n_classes == 3:
+            wandb.log(
+                {
+                    "Validation Average Background Accuracy": vavg_class_acc[0],
+                    "Validation Average Cells Accuracy": vavg_class_acc[1],
+                    "Validation Average Dendrites Accuracy": vavg_class_acc[2],
+                }
+            )
+            wandb.log(
+                {
+                    "Training Average Background Accuracy": tavg_class_acc[0],
+                    "Training Average Cells Accuracy": tavg_class_acc[1],
+                    "Training Average Dendrites Accuracy": tavg_class_acc[2],
+                }
+            )
+            wandb.log(
+                {
+                    "Validation Average IoU for Background": avg_inter_over_uni[0],
+                    "Validation Average IoU for Neurons": avg_inter_over_uni[1],
+                    "Validation Average IoU for Dendrites": avg_inter_over_uni[2],
+                }
+            )
+        elif n_classes == 2:
+            wandb.log(
+                {
+                    "Training Background Accuracy": tepoch_class_acc[0],
+                    "Training Dendrites Accuracy": tepoch_class_acc[1],
+                }
+            )
+            wandb.log(
+                {
+                    "Validation Background Accuracy": vepoch_class_acc[0],
+                    "Validation Dendrites Accuracy": vepoch_class_acc[1],
+                }
+            )
+            wandb.log(
+                {
+                    "Validation IoU for Background": inter_over_uni[0],
+                    "Validation IoU for Dendrites": inter_over_uni[1],
+                }
+            )
 
     try:
         os.mkdir(model_path)
@@ -262,7 +310,10 @@ if __name__ == "__main__":
             n_channels, n_classes
         )
     )
-    class_weights = np.array([0.3, 0.5, 1]).astype(np.float)
+    if n_classes == 3:
+        class_weights = np.array([0.3, 0.5, 1]).astype(np.float)
+    elif n_classes == 2:
+        class_weights = np.array([0.055, 1]).astype(np.float)
     print("Current class weights = {}".format(class_weights))
     assert (
         len(class_weights) == n_classes
