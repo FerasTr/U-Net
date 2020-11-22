@@ -15,6 +15,7 @@ from sklearn.metrics import confusion_matrix
 from utils.metrics import *
 
 wandb_track = False
+
 if wandb_track:
     import wandb
 
@@ -22,7 +23,7 @@ if wandb_track:
 
 data_folder = "../data/"
 model_path = "../model/"
-model_name = "exp.pth"
+model_name = "RMSprop_100e_0001_03051_model.pth"
 
 
 def train_net(

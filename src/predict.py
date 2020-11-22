@@ -12,6 +12,7 @@ from model.unet import UNet
 
 from utils.vis import *
 from utils.metrics import *
+
 import utils.params
 
 wandb_track = True
@@ -67,7 +68,7 @@ def predict(net, n_channles, n_classes):
 
             masks = masks.cpu().squeeze()
             if n_classes == 3:
-                masks = mask_to_image(masks)
+                masks = mask_to_image_3(masks)
             elif n_classes == 2:
                 masks = mask_to_image_2(masks)
 
@@ -137,7 +138,6 @@ def predict(net, n_channles, n_classes):
 
     if wandb_track:
         wandb.log({"Test Average Accuracy": tavg_acc})
-
         wandb.log(
             {
                 "Test Average Background Accuracy": tavg_class_acc[0],
