@@ -192,7 +192,7 @@ if __name__ == "__main__":
     n_classes = utils.params.n_classes
     n_channels = utils.params.n_channels
     net = UNet(n_channels=n_channels, n_classes=n_classes)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     net.to(device=device)
     try:
         os.mkdir(save_path)

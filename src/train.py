@@ -303,7 +303,7 @@ def train_net(
 
 
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     n_classes = utils.params.n_classes
     n_channels = utils.params.n_channels
     print(
