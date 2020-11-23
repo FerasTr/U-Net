@@ -15,7 +15,7 @@ from utils.metrics import *
 
 import utils.params
 
-wandb_track = True
+wandb_track = False
 if wandb_track:
     import wandb
 
@@ -23,7 +23,7 @@ if wandb_track:
 
 data_folder = "../data/"
 model_path = "../model/"
-model_name = "RMSprop_100e_0001_03051_model"
+model_name = "RMSprop_50e_0001_0047619_model"
 save_path = model_path + model_name + "/"
 
 
@@ -138,21 +138,36 @@ def predict(net, n_channles, n_classes):
 
     if wandb_track:
         wandb.log({"Test Average Accuracy": tavg_acc})
-        wandb.log(
-            {
-                "Test Average Background Accuracy": tavg_class_acc[0],
-                "Test Average Cells Accuracy": tavg_class_acc[1],
-                "Test Average Dendrites Accuracy": tavg_class_acc[2],
-            }
-        )
+        if n_classes == 3:
+            wandb.log(
+                {
+                    "Test Average Background Accuracy": tavg_class_acc[0],
+                    "Test Average Cells Accuracy": tavg_class_acc[1],
+                    "Test Average Dendrites Accuracy": tavg_class_acc[2],
+                }
+            )
 
-        wandb.log(
-            {
-                "Test Average IoU for Background": avg_inter_over_uni[0],
-                "Test Average IoU for Neurons": avg_inter_over_uni[1],
-                "Test Average IoU for Dendrites": avg_inter_over_uni[2],
-            }
-        )
+            wandb.log(
+                {
+                    "Test Average IoU for Background": avg_inter_over_uni[0],
+                    "Test Average IoU for Neurons": avg_inter_over_uni[1],
+                    "Test Average IoU for Dendrites": avg_inter_over_uni[2],
+                }
+            )
+        elif n_classes == 2:
+            wandb.log(
+                {
+                    "Test Average Background Accuracy": tavg_class_acc[0],
+                    "Test Average Dendrites Accuracy": tavg_class_acc[1],
+                }
+            )
+
+            wandb.log(
+                {
+                    "Test Average IoU for Background": avg_inter_over_uni[0],
+                    "Test Average IoU for Dendrites": avg_inter_over_uni[1],
+                }
+            )
 
     for i in range(n_classes):
         r, s, p, f = confusion_matrix_metrics(i, n_classes, conf_matrix)
@@ -174,7 +189,9 @@ def predict(net, n_channles, n_classes):
 
 
 if __name__ == "__main__":
-    net = UNet(n_channels=params.n_channles, n_classes=params.n_classes)
+    n_classes = utils.params.n_classes
+    n_channels = utils.params.n_channels
+    net = UNet(n_channels=n_channels, n_classes=n_classes)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net.to(device=device)
     try:
@@ -184,4 +201,4 @@ if __name__ == "__main__":
     net.load_state_dict(
         torch.load(model_path + model_name + ".pth", map_location=device)
     )
-    predict(net, params.n_channles, n_classes=params.n_classes)
+    predict(net, n_channels, n_classes=n_classes)

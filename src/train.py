@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from sklearn.metrics import confusion_matrix
 
 from utils.metrics import *
+import utils.params
 
 wandb_track = False
 
@@ -23,7 +24,7 @@ if wandb_track:
 
 data_folder = "../data/"
 model_path = "../model/"
-model_name = "RMSprop_100e_0001_03051_model.pth"
+model_name = "RMSprop_50e_0001_0047619_model.pth"
 
 
 def train_net(
@@ -31,7 +32,7 @@ def train_net(
     n_channels,
     n_classes,
     class_weights,
-    epochs=6,
+    epochs=50,
     batch_size=1,
     lr=0.0001,
     weight_decay=1e-8,
@@ -303,8 +304,8 @@ def train_net(
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    n_classes = 3
-    n_channels = 3
+    n_classes = utils.params.n_classes
+    n_channels = utils.params.n_channels
     print(
         "Number of input channels = {}. Number of classes = {}.".format(
             n_channels, n_classes
