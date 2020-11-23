@@ -313,7 +313,7 @@ if __name__ == "__main__":
     if n_classes == 3:
         class_weights = np.array([0.3, 0.5, 1]).astype(np.float)
     elif n_classes == 2:
-        class_weights = np.array([0.055, 1]).astype(np.float)
+        class_weights = np.array([0.047619, 1]).astype(np.float)
     print("Current class weights = {}".format(class_weights))
     assert (
         len(class_weights) == n_classes
