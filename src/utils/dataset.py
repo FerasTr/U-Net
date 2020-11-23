@@ -15,10 +15,10 @@ class Loader(Dataset):
             self.image_dir = os.path.join(data_folder, "input")
             self.label_dir = os.path.join(data_folder, "target")
         if mode == "test":
-            self.image_dir = os.path.join(data_folder, "test")
+            self.image_dir = os.path.join(data_folder, "test_input")
             self.label_dir = os.path.join(data_folder, "test_target")
         if mode == "val":
-            self.image_dir = os.path.join(data_folder, "val")
+            self.image_dir = os.path.join(data_folder, "val_input")
             self.label_dir = os.path.join(data_folder, "val_target")
         self.images = [
             file for file in os.listdir(self.image_dir) if not file.startswith(".")
