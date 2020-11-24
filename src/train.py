@@ -168,7 +168,7 @@ def train_net(
             )
        
         if wandb_track:
-            wandb.log({"Test Accuracy": tepoch_acc, "Test Loss": tepoch_loss})
+            wandb.log({"Training Accuracy": tepoch_acc, "Training Loss": tepoch_loss})
             wandb.log(
                 {"Validation Accuracy": vepoch_acc, "Validation Loss": vepoch_loss}
             )

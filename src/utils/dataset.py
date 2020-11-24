@@ -34,6 +34,7 @@ class Loader(Dataset):
         colors = torch.unique(target.view(-1, target.size(2)), dim=0).numpy()
         target = target.permute(2, 0, 1).contiguous()
         mapping = {tuple(c): t for c, t in zip(colors.tolist(), range(len(colors)))}
+        print(mapping)
         for k in mapping:
             idx = target == torch.tensor(k, dtype=torch.uint8).unsqueeze(1).unsqueeze(2)
             validx = idx.sum(0) == 3
@@ -71,7 +72,7 @@ class Loader(Dataset):
             img, mask = self.transform(img, mask)
         img, mask = self.transform_to_tensor(img, mask)
         mask = self.mask_to_class(mask)
-        return {"image": img, "mask": mask}
+        return {"image": img, "mask": mask, "img_path": img_file, "msk_path": mask_file}
 
 
     def change_brightness(self,image, value):
@@ -104,9 +105,11 @@ class Loader(Dataset):
 
 if __name__ == "__main__":
     data_folder = "/home/fdxd/Workspace/U-Net/data"
-    demo = Loader(data_folder, mode="train")
-    data = demo.__getitem__(0)
+    dataset_train = Loader(data_folder , mode="train")
+    #dataset_val = Loader(data_folder , mode="val")
     show = True
     if show:
-        print(data["image"].shape)
-        print(data["mask"].shape)
+        for i in dataset_train:
+            t = i["image"]
+            m = i["mask"]
+            print(i["msk_path"])
